@@ -12,7 +12,7 @@ def create_main_store_stock_lookup(input_file: str, output_file: str, log_fn=pri
     Generate Main Store Stock Lookup from batch-level stock data.
 
     Args:
-        input_file:  Path to Stock_Report_Material_without_item_category.xlsx
+        input_file:  Path to stock report file (.xlsx or .csv)
         output_file: Path for Material_Main_Store_Stock_Lookup.xlsx
         log_fn:      Callable for progress messages
 
@@ -29,15 +29,14 @@ def create_main_store_stock_lookup(input_file: str, output_file: str, log_fn=pri
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     log_fn("Loading input file…")
-    xl = pd.ExcelFile(input_file)
-    
-    raw_sheet = next((s for s in xl.sheet_names if "raw" in s.lower()), None)
-    if raw_sheet is None:
-        raise ValueError(f"No 'RAW DATA' sheet found. Available: {xl.sheet_names}")
-
-    df = pd.read_excel(input_file, sheet_name=raw_sheet)
-
-    log_fn(f"  Loaded {len(df):,} rows from 'RAW DATA'")
+    if input_file.lower().endswith(".csv"):
+        df = pd.read_csv(input_file)
+    else:
+        xl = pd.ExcelFile(input_file)
+        raw_sheet = xl.sheet_names[0]
+        log_fn(f"  Using sheet: '{raw_sheet}'")
+        df = pd.read_excel(input_file, sheet_name=raw_sheet)
+    log_fn(f"  Loaded {len(df):,} rows")
 
     # Check required columns
     required = [ITEM_COL, QTY_COL, "Store Name"]
