@@ -51,52 +51,34 @@ jobs:
             exit 1
           fi
 
-      # ── 6. Create DMG (disk image for easy distribution) ─────────────────────
-      - name: Create DMG
+      # ── 6. Zip .app for upload ───────────────────────────────────────────────
+      - name: Zip .app bundle
         run: |
-          # Install create-dmg
-          brew install create-dmg || true
-
-          # Create the DMG
-          create-dmg \
-            --volname "Pharmacy Inventory" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "PharmacyInventory.app" 175 190 \
-            --app-drop-link 425 190 \
-            "dist/PharmacyInventory-macOS.dmg" \
-            "dist/PharmacyInventory.app" \
-          || \
-          # Fallback: simple zip if create-dmg fails
           cd dist && zip -r PharmacyInventory-macOS.zip PharmacyInventory.app
+          echo "✅ Zipped: $(du -sh PharmacyInventory-macOS.zip)"
 
       # ── 7. Upload artifact ───────────────────────────────────────────────────
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: PharmacyInventory-macOS
-          path: |
-            dist/PharmacyInventory-macOS.dmg
-            dist/PharmacyInventory-macOS.zip
+          path: dist/PharmacyInventory-macOS.zip
           retention-days: 30
-          if-no-files-found: warn       # DMG creation may vary
+          if-no-files-found: error
 
       # ── 8. Create Release (only on tag push) ─────────────────────────────────
       - name: Create GitHub Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/PharmacyInventory-macOS.dmg
-            dist/PharmacyInventory-macOS.zip
+          files: dist/PharmacyInventory-macOS.zip
           name: "Release ${{ github.ref_name }}"
           body: |
             ## Hospital Pharmacy Inventory Manager – macOS
 
             ### How to install
-            1. Download `PharmacyInventory-macOS.dmg`
-            2. Open the DMG and drag the app to your Applications folder
+            1. Download `PharmacyInventory-macOS.zip`
+            2. Unzip and move `PharmacyInventory.app` to your Applications folder
             3. On first launch: right-click → Open (to bypass Gatekeeper)
 
             > **Note:** The app is not notarized. macOS may warn on first open.
