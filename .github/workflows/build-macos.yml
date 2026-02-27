@@ -1,0 +1,102 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [main]
+    tags:     ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python ────────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # ── 3. Dependencies ──────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # ── 4. Build ─────────────────────────────────────────────────────────────
+      - name: Build macOS .app with PyInstaller
+        run: |
+          pyinstaller pharmacy_inventory.spec --clean --noconfirm
+
+      # ── 5. Verify build ──────────────────────────────────────────────────────
+      - name: Verify .app exists
+        run: |
+          if [ -d "dist/PharmacyInventory.app" ]; then
+            echo "✅ .app bundle built successfully"
+            du -sh dist/PharmacyInventory.app
+          else
+            echo "❌ .app bundle not found"
+            exit 1
+          fi
+
+      # ── 6. Create DMG (disk image for easy distribution) ─────────────────────
+      - name: Create DMG
+        run: |
+          # Install create-dmg
+          brew install create-dmg || true
+
+          # Create the DMG
+          create-dmg \
+            --volname "Pharmacy Inventory" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "PharmacyInventory.app" 175 190 \
+            --app-drop-link 425 190 \
+            "dist/PharmacyInventory-macOS.dmg" \
+            "dist/PharmacyInventory.app" \
+          || \
+          # Fallback: simple zip if create-dmg fails
+          cd dist && zip -r PharmacyInventory-macOS.zip PharmacyInventory.app
+
+      # ── 7. Upload artifact ───────────────────────────────────────────────────
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PharmacyInventory-macOS
+          path: |
+            dist/PharmacyInventory-macOS.dmg
+            dist/PharmacyInventory-macOS.zip
+          retention-days: 30
+          if-no-files-found: warn       # DMG creation may vary
+
+      # ── 8. Create Release (only on tag push) ─────────────────────────────────
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/PharmacyInventory-macOS.dmg
+            dist/PharmacyInventory-macOS.zip
+          name: "Release ${{ github.ref_name }}"
+          body: |
+            ## Hospital Pharmacy Inventory Manager – macOS
+
+            ### How to install
+            1. Download `PharmacyInventory-macOS.dmg`
+            2. Open the DMG and drag the app to your Applications folder
+            3. On first launch: right-click → Open (to bypass Gatekeeper)
+
+            > **Note:** The app is not notarized. macOS may warn on first open.
+            > Right-click the app → "Open" to proceed.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
