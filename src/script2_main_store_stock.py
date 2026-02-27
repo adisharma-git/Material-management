@@ -30,10 +30,13 @@ def create_main_store_stock_lookup(input_file: str, output_file: str, log_fn=pri
 
     log_fn("Loading input file…")
     xl = pd.ExcelFile(input_file)
-    if "RAW DATA" not in xl.sheet_names:
-        raise ValueError(f"'RAW DATA' sheet not found. Available: {xl.sheet_names}")
+    
+    raw_sheet = next((s for s in xl.sheet_names if "raw" in s.lower()), None)
+    if raw_sheet is None:
+        raise ValueError(f"No 'RAW DATA' sheet found. Available: {xl.sheet_names}")
 
-    df = pd.read_excel(input_file, sheet_name="RAW DATA")
+    df = pd.read_excel(input_file, sheet_name=raw_sheet)
+
     log_fn(f"  Loaded {len(df):,} rows from 'RAW DATA'")
 
     # Check required columns
